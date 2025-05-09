@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Calendrier de visites personnalisable</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 700px;
+      margin: auto;
+    }
+    input, button, textarea {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0 15px;
+      font-size: 1em;
+    }
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+  </style>
+</head>
+<body>
+  <h2>🩺 Simulateur de calendrier de visites personnalisable</h2>
+
+  <label>Nom de l'étude :</label>
+  <input type="text" id="studyName" placeholder="Ex : Étude ABC123">
+
+  <label>Nom / Prénom / Numéro du patient :</label>
+  <input type="text" id="patientInfo" placeholder="Ex : Dupont Jean - 001234">
+
+  <label>Date d'inclusion :</label>
+  <input type="date" id="inclusionDate">
+
+  <label>Jours de visites (séparés par des virgules) :</label>
+  <input type="text" id="visitDays" placeholder="Ex : 0,7,14,28,56,84">
+
+  <button onclick="generateCalendar()">Générer le calendrier</button>
+
+  <div style="display: flex; gap: 10px;">
+    <button onclick="exportToPDF()">📄 Exporter en PDF</button>
+    <button onclick="exportToExcel()">📊 Exporter en Excel</button>
+  </div>
+
+  <table id="calendarTable" style="display:none;">
+    <thead>
+      <tr>
+        <th>Visite</th>
+        <th>Jour</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody id="calendarBody"></tbody>
+  </table>
+
+  <script>
+    let currentVisits = [];
+
+    function generateCalendar() {
+      const inclusion = document.getElementById("inclusionDate").value;
+      const visitInput = document.getElementById("visitDays").value;
+      const patient = document.getElementById("patientInfo").value;
+      const study = document.getElementById("studyName").value;
+
+      if (!inclusion || !visitInput) {
+        alert("Veuillez renseigner la date d'inclusion et les jours de visites.");
+        return;
+      }
+
+      const inclusionDate = new Date(inclusion);
+      const visitDays = visitInput.split(",").map(x => parseInt(x.trim())).filter(x => !isNaN(x)).sort((a,b) => a - b);
+      currentVisits = []; // reset
+
+      const tableBody = document.getElementById("calendarBody");
+      tableBody.innerHTML = "";
+
+      visitDays.forEach((day, index) => {
+        const visitDate = new Date(inclusionDate);
+        visitDate.setDate(inclusionDate.getDate() + day);
+
+        const formattedDate = visitDate.toLocaleDateString("fr-FR");
+        currentVisits.push({
+          visite: "Visite " + (index + 1),
+          jour: "J" + day,
+          date: formattedDate,
+          patient,
+          study
+        });
+
+        tableBody.innerHTML += `
+          <tr>
+            <td>Visite ${index + 1}</td>
+            <td>J${day}</td>
+            <td>${formattedDate}</td>
+          </tr>`;
+      });
+
+      document.getElementById("calendarTable").style.display = "table";
+    }
+
+    function exportToPDF() {
+      if (currentVisits.length === 0) return alert("Veuillez générer le calendrier d'abord.");
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      const patient = document.getElementById("patientInfo").value;
+      const study = document.getElementById("studyName").value;
+
+      doc.setFontSize(12);
+      doc.text(`Nom de l'étude : ${study}`, 10, 10);
+      doc.text(`Patient : ${patient}`, 10, 20);
+
+      let y = 35;
+      doc.autoTable({
+        head: [["Visite", "Jour", "Date"]],
+        body: currentVisits.map(v => [v.visite, v.jour, v.date]),
+        startY: y
+      });
+
+      doc.save(`Calendrier_${patient || 'patient'}.pdf`);
+    }
+
+    function exportToExcel() {
+      if (currentVisits.length === 0) return alert("Veuillez générer le calendrier d'abord.");
+
+      const wb = XLSX.utils.book_new();
+      const ws_data = [
+        ["Étude", document.getElementById("studyName").value],
+        ["Patient", document.getElementById("patientInfo").value],
+        [],
+        ["Visite", "Jour", "Date"]
+      ];
+      currentVisits.forEach(v => {
+        ws_data.push([v.visite, v.jour, v.date]);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+      XLSX.utils.book_append_sheet(wb, ws, "Calendrier");
+      XLSX.writeFile(wb, `Calendrier_${currentVisits[0].patient || 'patient'}.xlsx`);
+    }
+  </script>
+</body>
+</html>
